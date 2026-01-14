@@ -42,6 +42,10 @@ dependencies:
   screenshot: ^3.0.0
   # Share QR code to other apps (WhatsApp, Instagram, Email, etc.)
   share_plus: ^6.3.0
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  path_provider: ^2.1.5
+  open_file: ^3.5.0
 
 dev_dependencies:
   flutter_test:
@@ -58,7 +62,6 @@ dev_dependencies:
   # For mocking in tests
   mockito: ^5.4.0
   build_runner: ^2.4.0
-  
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
