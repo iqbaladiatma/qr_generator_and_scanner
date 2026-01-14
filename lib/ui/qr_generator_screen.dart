@@ -7,16 +7,18 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-const Color primaryColor = Color(0xFF3A2EC3);
+const Color kPrimaryBlue = Color(0xFF0D47A1);
+const Color kSecondaryBlue = Color(0xFF1565C0);
+const Color kAccentBlue = Color(0xFF1E88E5);
 
 const List<Color> qrColors = [
   Colors.white,
-  Colors.grey,
-  Colors.orange,
-  Colors.yellow,
-  Colors.green,
-  Colors.cyan,
-  Colors.purple,
+  Color(0xFFE3F2FD),
+  Color(0xFFBBDEFB),
+  Color(0xFFE8EAF6),
+  Color(0xFFF3E5F5),
+  Color(0xFFE0F7FA),
+  Color(0xFFE8F5E9),
 ];
 
 class QrGeneratorScreen extends StatefulWidget {
@@ -29,7 +31,6 @@ class QrGeneratorScreen extends StatefulWidget {
 class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
   final ScreenshotController _screenshotController = ScreenshotController();
   final TextEditingController _textController = TextEditingController();
-
   String? _qrData;
   Color _qrColor = Colors.white;
 
@@ -41,94 +42,48 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
 
   Future<void> _shareQrCode() async {
     if (_qrData == null || _qrData!.isEmpty) return;
-
-    // Wait for ripple effect or keyboard to dismiss
     await Future.delayed(const Duration(milliseconds: 100));
-    
-    // Capture the QR code widget
-    final Uint8List? imageBytes = await _screenshotController.capture(
-      pixelRatio: 3.0, // Higher resolution for better quality
-    );
-
+    final Uint8List? imageBytes = await _screenshotController.capture(pixelRatio: 3.0);
     if (imageBytes != null) {
       await Share.shareXFiles(
-        [
-          XFile.fromData(
-            imageBytes,
-            name: 'qrcode_${DateTime.now().millisecondsSinceEpoch}.png',
-            mimeType: 'image/png',
-          ),
-        ],
-        text: 'QR Code untuk: $_qrData\nDibuat dengan QR S&G',
-        subject: 'QR Code dari QR S&G App',
+        [XFile.fromData(imageBytes, name: 'qrcode.png', mimeType: 'image/png')],
+        text: 'QR Code untuk: $_qrData\nDibuat dengan QRODE',
       );
     }
   }
 
   Future<void> _generateAndPrintPdf() async {
     if (_qrData == null || _qrData!.isEmpty) return;
-
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      builder: (context) => const Center(child: CircularProgressIndicator(color: kPrimaryBlue)),
     );
-
     try {
       await Future.delayed(const Duration(milliseconds: 100));
       final imageBytes = await _screenshotController.capture(pixelRatio: 3.0);
-
       if (!mounted) return;
-      Navigator.pop(context); // Close loading
-
-      if (imageBytes == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal mengambil gambar QR Code')),
-        );
-        return;
-      }
-
+      Navigator.pop(context);
+      if (imageBytes == null) return;
       final pdf = pw.Document();
       final qrImage = pw.MemoryImage(imageBytes);
-
-      pdf.addPage(
-        pw.Page(
-          build: (pw.Context context) {
-            return pw.Center(
-              child: pw.Column(
-                mainAxisAlignment: pw.MainAxisAlignment.center,
-                children: [
-                  pw.Text('QR Code Generated', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
-                  pw.SizedBox(height: 20),
-                  pw.Image(qrImage, width: 200, height: 200),
-                  pw.SizedBox(height: 20),
-                  pw.Text('Link/Teks: $_qrData', style: const pw.TextStyle(fontSize: 14)),
-                  pw.SizedBox(height: 10),
-                  pw.Text('Dibuat oleh: QR S&G App', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey)),
-                ],
-              ),
-            );
-          },
+      pdf.addPage(pw.Page(
+        build: (pw.Context context) => pw.Center(
+          child: pw.Column(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            children: [
+              pw.Text('QR Code', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 20),
+              pw.Image(qrImage, width: 200, height: 200),
+              pw.SizedBox(height: 20),
+              pw.Text('Content: $_qrData'),
+            ],
+          ),
         ),
-      );
-
-      await Printing.layoutPdf(
-        onLayout: (format) async => pdf.save(),
-        name: 'QR_Code_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
+      ));
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
-      if (mounted) {
-        // Try to close dialog if it's still open (though we tried to pop earlier)
-        // If the error happened before pop, we need to pop.
-        // But we can't easily know if it was popped.
-        // A safer way is to use a local flag or just rely on the user to dismiss if it gets stuck?
-        // Or just pop and ignore error?
-        // We'll assume if we are here and the dialog is still up, we should pop?
-        // Actually, let's just show the snackbar.
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+      if (mounted) Navigator.pop(context);
     }
   }
 
@@ -143,62 +98,85 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create QR', style: TextStyle(color: Colors.white)),
-        backgroundColor: primaryColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [kPrimaryBlue, kSecondaryBlue],
+            stops: [0.0, 0.3],
+          ),
         ),
-      ),
-      body: Stack(
-        children: [
-          // Background design
-          Column(
+        child: SafeArea(
+          child: Column(
             children: [
-              Container(height: 220, color: primaryColor),
-              Expanded(child: Container(color: Colors.grey.shade50)),
+              _buildAppBar(),
+              const SizedBox(height: 20),
+              Expanded(child: _buildMainContent()),
             ],
           ),
-          // Main Content
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _buildQrPreview(),
-                        const SizedBox(height: 24),
-                        _buildInputSection(),
-                        const SizedBox(height: 24),
-                        _buildColorPicker(),
-                        const SizedBox(height: 32),
-                        const Divider(height: 1),
-                        const SizedBox(height: 16),
-                        _buildActionButtons(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+              onPressed: () => Navigator.pop(context),
             ),
           ),
+          const Expanded(
+            child: Text('Create QR Code', textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 48),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Color(0xFFF5F7FA),
+        borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            _buildQrCard(),
+            const SizedBox(height: 20),
+            _buildInputCard(),
+            const SizedBox(height: 24),
+            _buildActionButtons(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQrCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: kPrimaryBlue.withOpacity(0.08), blurRadius: 24, offset: const Offset(0, 8))],
+      ),
+      child: Column(
+        children: [_buildQrPreview(), const SizedBox(height: 24), _buildColorPicker()],
       ),
     );
   }
@@ -207,93 +185,82 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
     return Screenshot(
       controller: _screenshotController,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: _qrColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black12, width: 2),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: kAccentBlue.withOpacity(0.2), width: 2),
         ),
         child: _qrData == null || _qrData!.isEmpty
-            ? const Padding(
-                padding: EdgeInsets.all(40),
-                child: Text(
-                  'Masukkan teks/link untuk generate QR',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 16,
-                  ),
-                  textAlign: TextAlign.center,
+            ? SizedBox(
+                width: 180, height: 180,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.qr_code_2, size: 80, color: kAccentBlue.withOpacity(0.3)),
+                    const SizedBox(height: 12),
+                    Text('QR akan muncul di sini', style: TextStyle(color: Colors.grey[500], fontSize: 14)),
+                  ],
                 ),
               )
-            : PrettyQrView.data(
-                data: _qrData!,
-                decoration: const PrettyQrDecoration(
-                  shape: PrettyQrSmoothSymbol(),
-                ),
+            : SizedBox(
+                width: 180, height: 180,
+                child: PrettyQrView.data(data: _qrData!, decoration: const PrettyQrDecoration(shape: PrettyQrSmoothSymbol(color: kPrimaryBlue))),
               ),
       ),
     );
   }
 
-  Widget _buildInputSection() {
-    return TextField(
-      controller: _textController,
-      decoration: InputDecoration(
-        labelText: 'Link atau Teks',
-        hintText: 'https://example.com atau teks apa saja',
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        filled: true,
-        fillColor: Colors.grey.shade50,
+  Widget _buildInputCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: kPrimaryBlue.withOpacity(0.06), blurRadius: 20, offset: const Offset(0, 6))],
       ),
-      maxLines: 3,
-      onChanged: (value) {
-        setState(() {
-          _qrData = value.trim().isEmpty ? null : value.trim();
-        });
-      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Masukkan Konten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kPrimaryBlue)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _textController,
+            decoration: InputDecoration(
+              hintText: 'https://example.com',
+              filled: true,
+              fillColor: const Color(0xFFF5F7FA),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: kAccentBlue, width: 2)),
+              prefixIcon: Icon(Icons.link_rounded, color: Colors.grey[400]),
+            ),
+            maxLines: 3,
+            minLines: 1,
+            onChanged: (value) => setState(() => _qrData = value.trim().isEmpty ? null : value.trim()),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildColorPicker() {
     return Column(
       children: [
-        Text(
-          'Pilih Warna Background QR',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text('Warna Background', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[700])),
         const SizedBox(height: 12),
         Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: 10, runSpacing: 10,
           children: qrColors.map((color) {
+            final isSelected = _qrColor == color;
             return GestureDetector(
               onTap: () => setState(() => _qrColor = color),
               child: Container(
-                width: 40,
-                height: 40,
+                width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _qrColor == color ? Colors.black : Colors.transparent,
-                    width: 3,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 6,
-                    ),
-                  ],
+                  color: color, shape: BoxShape.circle,
+                  border: Border.all(color: isSelected ? kPrimaryBlue : Colors.grey[300]!, width: isSelected ? 3 : 1),
                 ),
+                child: isSelected ? const Icon(Icons.check, color: kPrimaryBlue, size: 20) : null,
               ),
             );
           }).toList(),
@@ -304,60 +271,67 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen> {
 
   Widget _buildActionButtons() {
     final bool hasData = _qrData != null && _qrData!.isNotEmpty;
-
     return Column(
       children: [
         Row(
           children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _resetQrCode,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('Reset'),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: hasData ? _shareQrCode : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: const Icon(Icons.share),
-                label: const Text('Share'),
-              ),
-            ),
+            Expanded(child: _buildButton('Reset', Icons.refresh, Colors.red[400]!, true, _resetQrCode)),
+            const SizedBox(width: 12),
+            Expanded(flex: 2, child: _buildGradientButton('Share QR', Icons.share_rounded, hasData, _shareQrCode)),
           ],
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: hasData ? _generateAndPrintPdf : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey.shade800,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+        const SizedBox(height: 12),
+        _buildGradientButton('Print / Save PDF', Icons.picture_as_pdf_rounded, hasData, _generateAndPrintPdf, fullWidth: true),
+      ],
+    );
+  }
+
+  Widget _buildButton(String text, IconData icon, Color color, bool enabled, VoidCallback onTap) {
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: color)),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [Icon(icon, color: color), const SizedBox(width: 8), Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w600))],
             ),
-            icon: const Icon(Icons.print),
-            label: const Text('Print / Save PDF'),
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildGradientButton(String text, IconData icon, bool enabled, VoidCallback onTap, {bool fullWidth = false}) {
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      decoration: BoxDecoration(
+        gradient: enabled ? const LinearGradient(colors: [kPrimaryBlue, kSecondaryBlue]) : null,
+        color: enabled ? null : Colors.grey[300],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: enabled ? Colors.white : Colors.grey[500]),
+                const SizedBox(width: 8),
+                Text(text, style: TextStyle(color: enabled ? Colors.white : Colors.grey[500], fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

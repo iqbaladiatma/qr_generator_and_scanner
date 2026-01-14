@@ -40,15 +40,16 @@ class MainApp extends StatelessWidget {
       theme: ThemeData(
         fontFamily: 'Manrope',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF553FB8), // warna brand utama
+          seedColor: const Color(0xFF0D47A1), // Biru modern
           brightness: Brightness.light,
         ),
         useMaterial3: true,
-        scaffoldBackgroundColor: Colors.grey[50],
+        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
+          foregroundColor: Color(0xFF1A237E),
           elevation: 0,
+          centerTitle: true,
         ),
       ),
 
