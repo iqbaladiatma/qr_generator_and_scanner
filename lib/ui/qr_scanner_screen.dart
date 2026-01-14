@@ -13,19 +13,23 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingObserver {
-  final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    returnImage: true,
-    formats: [BarcodeFormat.qrCode], // fokus QR saja
-  );
-
+  late final MobileScannerController _controller;
   String? _barcodeValue;
+  Uint8List? _capturedImage;
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _requestCameraPermission();
+    _controller = MobileScannerController(
+      autoStart: false,
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      returnImage: true,
+      formats: [BarcodeFormat.qrCode],
+    );
     WidgetsBinding.instance.addObserver(this);
+    _initializeCamera();
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       showModalBottomSheet(
@@ -37,27 +41,57 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     });
   }
 
-  Future<void> _requestCameraPermission() async {
-    // On Web, the browser handles permission prompts automatically when the camera is accessed.
-    // We don't need permission_handler here, and it can cause MissingPluginException if not fully supported.
-    if (kIsWeb) {
-      _controller.start();
-      return;
-    }
-
-    final status = await Permission.camera.status;
-    if (!status.isGranted) {
-      final result = await Permission.camera.request();
-      if (!result.isGranted) {
-        // Optional: tampilkan dialog jika ditolak permanen
-        if (result.isPermanentlyDenied) {
-          openAppSettings();
+  Future<void> _initializeCamera() async {
+    try {
+      if (kIsWeb) {
+        // On Web, browser handles permission automatically
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (mounted) {
+          await _controller.start();
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      } else {
+        // For mobile platforms, request camera permission
+        final status = await Permission.camera.status;
+        if (!status.isGranted) {
+          final result = await Permission.camera.request();
+          if (result.isGranted) {
+            await _controller.start();
+            setState(() {
+              _isLoading = false;
+            });
+          } else if (result.isPermanentlyDenied) {
+            openAppSettings();
+            setState(() {
+              _isLoading = false;
+              _errorMessage = 'Camera permission denied. Please enable in settings.';
+            });
+          } else {
+            setState(() {
+              _isLoading = false;
+              _errorMessage = 'Camera permission denied.';
+            });
+          }
+        } else {
+          await _controller.start();
+          setState(() {
+            _isLoading = false;
+          });
         }
       }
-    } else {
-      _controller.start();
+    } catch (e) {
+      debugPrint('Error initializing camera: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to initialize camera: ${e.toString()}';
+        });
+      }
     }
   }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -76,6 +110,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
     }
     super.didChangeAppLifecycleState(state);
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,64 +122,140 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
       body: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: _handleBarcode,
-            placeholderBuilder: (context, child) => const Center(
-              child: CircularProgressIndicator(),
+          if (_isLoading)
+            const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Initializing camera...'),
+                ],
+              ),
+            )
+          else if (_errorMessage != null)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _isLoading = true;
+                        _errorMessage = null;
+                      });
+                      _initializeCamera();
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          else
+            MobileScanner(
+              controller: _controller,
+              onDetect: _handleBarcode,
+              errorBuilder: (context, error, child) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, size: 64, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Camera Error: ${error.errorCode.name}',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                      if (error.errorDetails != null)
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            error.errorDetails!.message ?? '',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
             ),
-          ),
-          Center(
-            child: CustomPaint(
-              size: const Size(280, 280),
-              painter: ScannerOverlayPainter(),
+          if (!_isLoading && _errorMessage == null)
+            Center(
+              child: CustomPaint(
+                size: const Size(280, 280),
+                painter: ScannerOverlayPainter(),
+              ),
             ),
-          ),
-          Positioned(
-            bottom: 80,
-            left: 0,
-            right: 0,
-            child: const Center(
-              child: Text(
-                'Arahkan QR Code ke dalam kotak',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  shadows: [Shadow(blurRadius: 10, color: Colors.black)],
+          if (!_isLoading && _errorMessage == null)
+            Positioned(
+              bottom: 80,
+              left: 0,
+              right: 0,
+              child: const Center(
+                child: Text(
+                  'Arahkan QR Code ke dalam kotak',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    shadows: [Shadow(blurRadius: 10, color: Colors.black)],
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
   void _handleBarcode(BarcodeCapture capture) {
-    final Uint8List? image = capture.image;
     final barcode = capture.barcodes.firstOrNull;
+    final Uint8List? image = capture.image;
     
-    if (barcode != null && barcode.rawValue != null && image != null) {
+    if (barcode != null && barcode.rawValue != null) {
       _controller.stop();
-      setState(() => _barcodeValue = barcode.rawValue);
+      setState(() {
+        _barcodeValue = barcode.rawValue;
+        _capturedImage = image;
+      });
       
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           title: const Text('QR Terdeteksi'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.memory(image, height: 180),
-              const SizedBox(height: 16),
-              SelectableText(
-                _barcodeValue!,
-                style: const TextStyle(fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_capturedImage != null)
+                  Image.memory(_capturedImage!, height: 180)
+                else
+                  Container(
+                    height: 180,
+                    width: 180,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.qr_code_2, size: 100, color: Colors.grey),
+                  ),
+                const SizedBox(height: 16),
+                SelectableText(
+                  _barcodeValue!,
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton.icon(
